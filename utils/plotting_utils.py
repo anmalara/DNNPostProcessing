@@ -1,5 +1,106 @@
 from tdrstyle import *
 import tdrstyle as TDR
+import numpy as np
+from sklearn.utils.multiclass import type_of_target
+from sklearn.utils.extmath import stable_cumsum
+from sklearn.utils import check_consistent_length, assert_all_finite, column_or_1d, check_array
+
+def binary_clf_curve(y_true, y_score, pos_label=None, sample_weight=None):
+    # Check to make sure y_true is valid
+    y_type = type_of_target(y_true)
+    if not (y_type == "binary" or
+            (y_type == "multiclass" and pos_label is not None)):
+        raise ValueError("{0} format is not supported".format(y_type))
+
+    check_consistent_length(y_true, y_score, sample_weight)
+    y_true = column_or_1d(y_true)
+    y_score = column_or_1d(y_score)
+    assert_all_finite(y_true)
+    assert_all_finite(y_score)
+
+    if sample_weight is not None:
+        sample_weight = column_or_1d(sample_weight)
+
+    # ensure binary classification if pos_label is not specified
+    classes = np.unique(y_true)
+    if (pos_label is None and
+        not (np.array_equal(classes, [0, 1]) or
+             np.array_equal(classes, [-1, 1]) or
+             np.array_equal(classes, [0]) or
+             np.array_equal(classes, [-1]) or
+             np.array_equal(classes, [1]))):
+        raise ValueError("Data is not binary and pos_label is not specified")
+    elif pos_label is None:
+        pos_label = 1.
+
+    # make y_true a boolean vector
+    y_true = (y_true == pos_label)
+
+    # sort scores and corresponding truth values
+    desc_score_indices = np.argsort(y_score, kind="mergesort")[::-1]
+    y_score = y_score[desc_score_indices]
+    y_true = y_true[desc_score_indices]
+    if sample_weight is not None:
+        weight = sample_weight[desc_score_indices]
+    else:
+        weight = 1.
+
+    # y_score typically has many tied values. Here we extract
+    # the indices associated with the distinct values. We also
+    # concatenate a value for the end of the curve.
+    distinct_value_indices = np.where(np.diff(y_score))[0]
+    threshold_idxs = np.r_[distinct_value_indices, y_true.size - 1]
+
+    # accumulate the true positives with decreasing threshold
+    tps = stable_cumsum(y_true * weight)[threshold_idxs]
+    if sample_weight is not None:
+        # express fps as a cumsum to ensure fps is increasing even in
+        # the presence of floating point errors
+        fps = stable_cumsum((1 - y_true) * weight)[threshold_idxs]
+    else:
+        fps = 1 + threshold_idxs - tps
+    return fps, tps, y_score[threshold_idxs]
+
+def roc_curve_short(y_true, y_score, pos_label=None, sample_weight=None, drop_intermediate=True):
+    # Copied from https://github.com/scikit-learn/scikit-learn/blob/7389dba/sklearn/metrics/ranking.py#L535
+    # Extended by purity-part
+
+    fps, tps, thresholds = binary_clf_curve(y_true, y_score, pos_label=pos_label, sample_weight=sample_weight)
+    if drop_intermediate and len(fps) > 2:
+        keep_only_every = 1 if (len(fps) < 10000) else (10 if (len(fps) < 100000) else 100)
+        optimal_idxs = np.where(np.r_[True, np.logical_or(np.diff(fps, 2), np.diff(tps, 2)), True])[0]
+        fps = fps[optimal_idxs]
+        tps = tps[optimal_idxs]
+        thresholds = thresholds[optimal_idxs]
+        reduced_idxs = range(len(thresholds))[0::keep_only_every]
+        if not len(thresholds)-1 == reduced_idxs[-1]:
+            reduced_idxs.append(len(thresholds)-1)
+        fps = fps[reduced_idxs]
+        tps = tps[reduced_idxs]
+        thresholds = thresholds[reduced_idxs]
+
+    if tps.size == 0 or fps[0] != 0 or tps[0] != 0:
+        tps = np.r_[0, tps]
+        fps = np.r_[0, fps]
+        thresholds = np.r_[thresholds[0] + 1, thresholds]
+
+    if fps[-1] <= 0:
+        warnings.warn("No negative samples in y_true, "
+                      "false positive value should be meaningless",
+                      UndefinedMetricWarning)
+        fpr = np.repeat(np.nan, fps.shape)
+    else:
+        fpr = fps / fps[-1]
+
+    if tps[-1] <= 0:
+        warnings.warn("No positive samples in y_true, "
+                      "true positive value should be meaningless",
+                      UndefinedMetricWarning)
+        tpr = np.repeat(np.nan, tps.shape)
+    else:
+        tpr = tps / tps[-1]
+
+    return (fpr, tpr, thresholds)
 
 def list_to_tgraph(x, y):
     if not type(x) == type(y):
@@ -40,16 +141,31 @@ def PlotGraphs(graphs={}, pdfname='ROCs', x_title='Signal efficiency', y_title='
     canv.SaveAs(pdfname+'.pdf')
     canv.Close()
 
-def GetROC(fname='mlp_predict.root', treename='Events', y_true = 'is_signal_new', y_score = 'score_is_signal_new', swap=False):
+def GetROC(fname='mlp_predict.root', treename='Events', y_true = 'is_signal', y_score = 'score_is_signal', swap=False, drop_intermediate=True):
     from root_numpy import root2array, rec2array
     mymatrix = rec2array(root2array(filenames=fname, treename=treename, branches=[y_true,y_score]))
     import pandas as pd
     from array import array
     df = pd.DataFrame(mymatrix,columns=['y_true','y_score'])
     from sklearn.metrics import roc_curve, auc, accuracy_score
-    acc = accuracy_score(df['y_true'].round().astype(int),df['y_score'].round().astype(int))
-    fpr, tpr, thr = roc_curve(df['y_true'], df['y_score'])
+    acc = accuracy_score(df['y_true'].round().astype(int),df['y_score'].round().astype(int)) if len(df['y_score'][df['y_score']>1])==0 else 0
+    fpr, tpr, thr = roc_curve_short(df['y_true'], df['y_score']) if drop_intermediate else roc_curve(df['y_true'], df['y_score'])
     if swap: fpr, tpr = (tpr,fpr)
     auc = auc(fpr, tpr)
     graph = list_to_tgraph(tpr,fpr)
     return (graph,auc,acc)
+
+
+def GetScores(fname='mlp_predict.root', treename='Events', y_true = 'is_signal', y_score = 'score_is_signal'):
+    from root_numpy import root2array, rec2array
+    mymatrix = rec2array(root2array(filenames=fname, treename=treename, branches=[y_true,y_score]))
+    import pandas as pd
+    from array import array
+    df = pd.DataFrame(mymatrix,columns=['y_true','y_score'])
+    sig = array('d', df[df['y_true']==1]['y_score'])
+    bkg = array('d', df[df['y_true']==0]['y_score'])
+    h_sig = rt.TH1F('h_sig', 'h_sig', 100, 0,1)
+    h_bkg = rt.TH1F('h_bkg', 'h_bkg', 100, 0,1)
+    for x in sig: h_sig.Fill(x)
+    for x in bkg: h_bkg.Fill(x)
+    return (h_sig,h_bkg)

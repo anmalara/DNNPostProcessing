@@ -73,8 +73,7 @@ def tdrGrid( gridOn):
 
 # Redraws the axis
 def fixOverlay():
-  gPad.RedrawAxis()
-  # rt.gPad.RedrawAxis()
+  rt.gPad.RedrawAxis()
 
 def setTDRStyle():
   tdrStyle =  rt.TStyle("tdrStyle","Style for P-TDR")

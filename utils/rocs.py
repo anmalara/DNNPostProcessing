@@ -20,13 +20,21 @@ def GetInfoFromFolder(folder):
                 infos['info'] = info[2][info[2].find(infos['config'])+len(infos['config'])+1:].replace('epoch_','')
     infos['config'] = infos['config'].split('.')[0].replace('VBF_points_features','').replace('VBF_features','').replace('_','')
     if infos['config'] == '': infos['config'] ='all'
+    if not 'cat' in infos['info']: infos['info'] = 'cat'+infos['info']
     infos['leg'] = ' '.join([infos['net'].replace('deepAK8', 'da8').replace('PN', 'PN '), infos['config'].replace('charged', 'cha').replace('neutral', 'neu').replace('UE', 'UE '), infos['info']])
     return infos
 
 
-def CompareROCS(infos,pdfname,y_true,outfile='/predict_output/pred.root',treename='Events'):
+def CompareROCS(infos,pdfname,y_true='is_signal',outfile='/predict_output/pred.root',treename='Events', doComparison=False):
     graphs = OrderedDict()
     for info in infos:
+        if doComparison and info== infos[0]:
+            graph,auc,acc = GetROC(fname=info['fname']+outfile, treename=treename, y_true = y_true, y_score = 'm_mjj')
+            graphs[graph] = {'legendtext': 'mjj', 'auc': auc, 'acc': acc}
+            if 'style' in info:
+                graphs[graph].update(info['style'])
+                graphs[graph]['color'] = ROOT.kBlack
+                graphs[graph]['lstyle'] = ROOT.kDashed
         graph,auc,acc = GetROC(fname=info['fname']+outfile, treename=treename, y_true = y_true, y_score = 'score_'+y_true)
         graphs[graph] = {'legendtext': info['leg'].lower(), 'auc': auc, 'acc': acc}
         if 'style' in info:
@@ -51,8 +59,11 @@ def main():
         'cat1':    ROOT.kOrange+1,
         'cat2':    ROOT.kAzure+2,
         'cat012':  ROOT.kViolet-3,
+        'catm1':   ROOT.kSpring+10,
+        'catm2':   ROOT.kTeal+9,
+        'catm3':   ROOT.kGreen+3,
         'catm012': ROOT.kGreen+2,
-        'catall':  ROOT.kSpring+2,
+        'catall':  ROOT.kCyan+1,
         }
 
     style = {
@@ -78,7 +89,7 @@ def main():
         infos.append(info)
 
     nets = ['mlp', 'deepAK8', 'PN']
-    cats = ['0','1','2', '012', 'm012', 'all']
+    cats = ['0','1','2', '012', 'm1','m2','m3', 'm012', 'all']
     configs = ['charged', 'neutral', 'UE', 'VBF', 'all']
 
     for config in configs:
@@ -90,7 +101,7 @@ def main():
                         to_plot.append(info)
             for info in to_plot:
                 info['style'] = {'color': colors[info['net']]}
-            CompareROCS(infos=to_plot, y_true='is_signal', pdfname=outputfolder+'vsNet/ROCs_'+config+'_cat'+cat)
+            CompareROCS(infos=to_plot, pdfname=outputfolder+'vsNet/ROCs_'+config+'_cat'+cat, doComparison=True)
 
     for net in nets:
         for cat in cats:
@@ -101,7 +112,7 @@ def main():
                         to_plot.append(info)
             for info in to_plot:
                 info['style'] = {'color': colors[info['config']]}
-            CompareROCS(infos=to_plot, y_true='is_signal', pdfname=outputfolder+'vsConfig/ROCs_'+net+'_cat'+cat)
+            CompareROCS(infos=to_plot, pdfname=outputfolder+'vsConfig/ROCs_'+net+'_cat'+cat, doComparison=True)
 
     for net in nets:
         for config in configs:
@@ -112,7 +123,7 @@ def main():
                         to_plot.append(info)
             for info in to_plot:
                 info['style'] = {'color': colors[info['info']]}
-            CompareROCS(infos=to_plot, y_true='is_signal', pdfname=outputfolder+'vsCat/ROCs_'+net+'_'+config)
+            CompareROCS(infos=to_plot, pdfname=outputfolder+'vsCat/ROCs_'+net+'_'+config)
 
 if __name__ == '__main__':
     main()
