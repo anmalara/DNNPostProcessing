@@ -5,8 +5,8 @@ from collections import OrderedDict
 from ClusterSubmission.ClusterSpecificSettings import ClusterSpecificSettings as CSS
 from ClusterSubmission.UserSpecificSettings import UserSpecificSettings as USS
 
-def GetTimeFromLog(file_):
-    with open(file_, 'r') as f_:
+def GetInfoFromLog(fname):
+    with open(fname, 'r') as f_:
         info = OrderedDict([
             ('tot', None), ('n_epochs', 0), ('avg', 0),
             ('optimalTime', ''), ('config', ''), ('net', ''), ('mode', '')
@@ -39,9 +39,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--files', nargs='*', default=[])
     args = parser.parse_args()
-    for file in args.files:
-        time_ = GetTimeFromLog(file)
-        print(file, time_.values())
+    for fname in args.files:
+        info = GetInfoFromLog(fname)
+        print(fname, info.values())
 
 if __name__ == '__main__':
     main()
