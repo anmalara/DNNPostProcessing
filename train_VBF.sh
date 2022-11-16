@@ -6,14 +6,15 @@
 #./train_VBF.sh -m deepak8_pf -d VBF_features
 #./train_VBF.sh -m particlenet_pf -d VBF_points_features
 #./train_VBF.sh -e "--batch-size 512 --num-n_epochs 3"
+#./train_VBF.sh -p pred_all -o trainings/particlenet_pf/*VBF_points_features_epoch_10_cat012
 
 set -x
 
 echo "args: $@"
 
 # Defining nominal variables
-model="mlp_pf"
-data="VBF_features"
+model="particlenet_pf"
+data="VBF_points_features"
 flag_test=""
 n_gpus=""
 n_epochs="1"
@@ -26,9 +27,11 @@ data_test_ref="${inputdir}/eventCategory_0/MC*M1[3][0]*UL1[6-7-8]*.root"
 data_train="${data_train_ref}"
 data_val="${data_val_ref}"
 data_test="${data_test_ref}"
+mode="train"
+outputdir=""
 
 
-while getopts m:d:f:t:v:x:g:e:n: flag
+while getopts m:d:f:t:v:x:g:e:n:p:o: flag
 do
     case "${flag}" in
         m) model=${OPTARG};;
@@ -40,6 +43,8 @@ do
         g) n_gpus=${OPTARG};;
         e) n_epochs=${OPTARG};;
         n) extra_name=${OPTARG};;
+        p) mode=${OPTARG};;
+        o) outputdir=${OPTARG};;
     esac
 done
 
@@ -48,7 +53,10 @@ if [[ ${extra_name} != "" ]]; then
 fi
 
 
-outputdir="trainings/${model}/{auto}_${data}${extra_name}"
+if [[ ${outputdir} == "" ]]; then
+    outputdir="trainings/${model}/{auto}_${data}${extra_name}"
+fi
+
 output_name="pred.root"
 model_config="models/${model}.py"
 data_config="data/${data}.yaml"
@@ -74,15 +82,43 @@ elif [[ ${n_gpus} == "4" ]]; then
     n_gpus="0,1,2"
 fi
 
-weaver \
-    --data-train "${data_train}" --data-val "${data_val}" --data-test "${data_test}" \
-    --data-config ${data_config} --network-config ${model_config} \
-    --model-prefix "${outputdir}/net" --log "${outputdir}/log.log" \
-    ${train_opts} ${batch_opts} --gpus "${n_gpus}" \
-    --num-workers 4 --fetch-step 0.01 \
-    --optimizer ranger --predict-output ${output_name}\
-    --tensorboard "${model}_${data}${extra_name}"
-
+if [[ ${mode} == "train" ]]; then
+    weaver \
+        --data-train "${data_train}" --data-val "${data_val}" --data-test "${data_test}" \
+        --data-config ${data_config} --network-config ${model_config} \
+        --model-prefix "${outputdir}/net" --log "${outputdir}/log.log" \
+        ${train_opts} ${batch_opts} --gpus "${n_gpus}" \
+        --num-workers 4 --fetch-step 0.01 \
+        --optimizer ranger --predict-output ${output_name}\
+        --tensorboard "${model}_${data}${extra_name}"
+elif [[ ${mode} == *"pred"* ]]; then
+    n_gpus="0"
+    nvidia-smi || n_gpus=""
+    data_train="${inputdir}/eventCategory_[0-2]/MC*M1[2][4-6]*UL1[6-7-8]*.root"
+    data_val="${inputdir}/eventCategory_[0-2]/MC*M1[2][0]*UL1[6-7-8]*.root"
+    data_test="${inputdir}/eventCategory_[0-2]/MC*M1[3][0]*UL1[6-7-8]*.root"
+    output_name="${mode}_test.root"
+    weaver \
+        --predict --data-test "${data_test}" \
+        --data-config ${data_config} --network-config ${model_config} \
+        --model-prefix "${outputdir}/net" --log "${outputdir}/log_predict.log" \
+        ${batch_opts} --gpus "${n_gpus}" --num-workers 4 --fetch-step 0.0 \
+        --predict-output ${output_name}
+    output_name="${mode}_train.root"
+    weaver \
+        --predict --data-test "${data_train}" \
+        --data-config ${data_config} --network-config ${model_config} \
+        --model-prefix "${outputdir}/net" --log "${outputdir}/log_predict.log" \
+        ${batch_opts} --gpus "${n_gpus}" --num-workers 4 --fetch-step 0.0 \
+        --predict-output ${output_name}
+    output_name="${mode}_val.root"
+    weaver \
+        --predict --data-test "${data_val}" \
+        --data-config ${data_config} --network-config ${model_config} \
+        --model-prefix "${outputdir}/net" --log "${outputdir}/log_predict.log" \
+        ${batch_opts} --gpus "${n_gpus}" --num-workers 4 --fetch-step 0.0 \
+        --predict-output ${output_name}
+fi
 
 #--samples-per-epoch 100000 --samples-per-epoch-val 20000
 #--tensorboard VBF_${suffix} \

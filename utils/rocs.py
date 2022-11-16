@@ -1,6 +1,6 @@
 import os, glob, argparse, ROOT
 from collections import OrderedDict
-from plotting_utils import GetROC, PlotGraphs
+from plotting_utils import GetROC, PlotGraphs, GetROCvsCat
 
 def GetInfoFromFolder(folder):
     log = os.path.join(folder,'log.log')
@@ -125,5 +125,25 @@ def main():
                 info['style'] = {'color': colors[info['info']]}
             CompareROCS(infos=to_plot, pdfname=outputfolder+'vsCat/ROCs_'+net+'_'+config)
 
+def main_VsCat():
+    colors = {
+        "0":    ROOT.kRed+1,
+        "1":    ROOT.kOrange+1,
+        "2":    ROOT.kAzure+2,
+        "012":  ROOT.kViolet-3,
+        "-1":   ROOT.kSpring+10,
+        "-2":   ROOT.kTeal+9,
+        "-3":   ROOT.kGreen+3,
+        "-012": ROOT.kGreen+2,
+        }
+    categories=OrderedDict()
+    for cat in ['0','1','2']:
+        categories[cat]=colors[cat]
+    folder = 'trainings/particlenet_pf/20221111-181843_particlenet_pf_ranger_lr0.001_batch512_VBF_points_features_epoch_40_cat012/predict_output/'
+    for mode in ['test','val','train']:
+        graphs = GetROCvsCat(fname=folder+'pred_'+mode+'.root', categories=categories)
+        PlotGraphs(graphs,pdfname='Roc_vs_Cat_'+mode)
+
 if __name__ == '__main__':
-    main()
+    # main()
+    main_VsCat()

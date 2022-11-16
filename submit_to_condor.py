@@ -42,13 +42,13 @@ def submit(n_epochs, cat, doTesting, resubmit, debug):
         'catm3':   {'cat': 'eventCategory_-[3]',   'time':'00:30:00',},
         'cat012':  {'cat': 'eventCategory_[0-2]',  'time':'00:30:00',},
         'catm123': {'cat': 'eventCategory_-[0-2]', 'time':'00:30:00',},
-        'all':     {'cat': 'all',                  'time':'00:30:00',},
-        # 'all':     {'cat': 'all',                  'time':'02:00:00',},
+        'all':     {'cat': 'all',                  'time':'02:00:00',},
     }
 
     model_config_info = []
     modes = ['', '_charged', '_neutral', '_UE', '_VBF']
     modes = ['']
+    modes = ['_70','_80','_90','_100','_110','_120','_sorted_70','_sorted_80','_sorted_90','_sorted_100','_sorted_110','_sorted_120']
     for mode in modes:
         # model_config_info.append(('mlp_pf',         'VBF_features'+mode))
         # model_config_info.append(('deepak8_pf',     'VBF_features'+mode))
@@ -114,16 +114,17 @@ def submit(n_epochs, cat, doTesting, resubmit, debug):
 
 
 def main():
-    epochs = ['40']
-    categories = ['cat0','cat1','cat2','catm1','catm2','catm3','cat012','catm123','all']
+    epochs = ['20']
+    # categories = ['cat0','cat1','cat2','catm1','catm2','catm3','cat012','catm123','all']
     #categories = ['catm2','catm3','cat012','catm123']
-    categories = ['all']
+    # categories = ['all']
+    categories = ['cat012']
 
     doTesting = False
     # doTesting = True
 
     debug=False
-    debug=True
+    # debug=True
 
     resubmit=True
     resubmit=False

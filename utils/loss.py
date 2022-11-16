@@ -5,7 +5,7 @@ from array import array
 from tdrstyle import *
 import tdrstyle as TDR
 
-def plot_losses(jsonName, mode='loss', name='history', min_epoch=0, dynamic=True, writeExtraText = True, extraText  = 'Simulation', extraText2 = 'Work in progress', lumi_text=''):
+def plot_losses(folder, mode='loss', name='history', min_epoch=0, dynamic=True, writeExtraText = True, extraText  = 'Simulation', extraText2 = 'Work in progress', lumi_text=''):
     inputfolder = os.getenv('ANALYSISPATH')+'/runs/'
     outputfolder = os.getenv('ANALYSISPATH')+'/PDFs/'
     TDR.writeExtraText = writeExtraText
@@ -13,8 +13,10 @@ def plot_losses(jsonName, mode='loss', name='history', min_epoch=0, dynamic=True
     TDR.extraText2 = extraText2
     TDR.cms_lumi_TeV = lumi_text
     isLoss = mode =='loss'
-    history = pd.read_json(inputfolder+jsonName)
-    history = history.rename(columns=dict(enumerate(['time','epoch','loss','val_loss'])))
+    history = pd.read_json(inputfolder+folder+'/'+mode+'_train.json')
+    df = pd.read_json(inputfolder+folder+'/'+mode+'_val.json')
+    history = history.rename(columns=dict(enumerate(['time','epoch',mode])))
+    history['val_'+mode] = df[2]
     history = history.filter(items = list(range(min_epoch,len(history))), axis=0)
     history['epoch'] = history['epoch']+1
     history['deltaTime'] = history['time'].map(lambda x: (x-history['time'][0])/60/60)
@@ -33,7 +35,7 @@ def plot_losses(jsonName, mode='loss', name='history', min_epoch=0, dynamic=True
         color = rt.kAzure+2 if m == mode else rt.kOrange+1
         tdrDraw(graphs[m], 'L', mcolor=color, lcolor=color)
         leg.AddEntry(graphs[m], 'Training set' if m == mode else 'Validation set' , 'l')
-    canv.SaveAs(outputfolder+name+'.pdf')
+    canv.SaveAs(outputfolder+name+'_'+mode+'.pdf')
     # canv.SetLogy(1)
     # canv.SaveAs(outputfolder+name+'_logy.pdf')
     canv.Close()
@@ -46,14 +48,15 @@ def plot_losses(jsonName, mode='loss', name='history', min_epoch=0, dynamic=True
         color = rt.kAzure+2 if m == mode else rt.kOrange+1
         tdrDraw(graphs[m], 'L', mcolor=color, lcolor=color)
         leg.AddEntry(graphs[m], 'Training set' if m == mode else 'Validation set' , 'l')
-    canv.SaveAs(outputfolder+name+'_h.pdf')
+    canv.SaveAs(outputfolder+name+'_'+mode+'_time.pdf')
     # canv.SetLogy(1)
     # canv.SaveAs(outputfolder+name+'_h_logy.pdf')
     canv.Close()
 
 def main():
-    jsonName='Oct30_02-07-25_b7g47n2618.cern.chparticlenet_pf_VBF_points_features_epoch_10_all/Oct30_02-07-25_b7g47n2618.cern.chparticlenet_pf_VBF_points_features_epoch_10_all.json'
-    plot_losses(jsonName, name='PN_all_epoch_10_all')
+    folder='Nov11_18-18-45_b7g47n9788.cern.chparticlenet_pf_VBF_points_features_epoch_40_cat012'
+    plot_losses(folder, name='PN_VBF_epoch_40_all', mode='loss')
+    plot_losses(folder, name='PN_VBF_epoch_40_all', mode='acc')
 
 if __name__ == '__main__':
     main()
