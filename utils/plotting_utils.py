@@ -1,9 +1,14 @@
-from tdrstyle import *
-import tdrstyle as TDR
 import numpy as np
+import pandas as pd
+from array import array
+from collections import OrderedDict
+from root_numpy import root2array, rec2array
+from sklearn.metrics import roc_curve, auc, accuracy_score
 from sklearn.utils.multiclass import type_of_target
 from sklearn.utils.extmath import stable_cumsum
 from sklearn.utils import check_consistent_length, assert_all_finite, column_or_1d, check_array
+from tdrstyle import *
+import tdrstyle as TDR
 
 def binary_clf_curve(y_true, y_score, pos_label=None, sample_weight=None):
     # Check to make sure y_true is valid
@@ -61,7 +66,7 @@ def binary_clf_curve(y_true, y_score, pos_label=None, sample_weight=None):
         fps = 1 + threshold_idxs - tps
     return fps, tps, y_score[threshold_idxs]
 
-def roc_curve_short(y_true, y_score, pos_label=None, sample_weight=None, drop_intermediate=True):
+def roc_curve_reduced(y_true, y_score, pos_label=None, sample_weight=None, drop_intermediate=True):
     # Copied from https://github.com/scikit-learn/scikit-learn/blob/7389dba/sklearn/metrics/ranking.py#L535
     # Extended by purity-part
 
@@ -107,7 +112,6 @@ def list_to_tgraph(x, y):
         raise ValueError('In \'list_to_tgraph(): Passed two objects of different type.\'')
     if not len(x) == len(y):
         raise ValueError('In \'list_to_tgraph(): Passed two lists with different length.\'')
-    from array import array
     x = array('f', x)
     y = array('f', y)
     g = rt.TGraph(len(x), x, y)
@@ -141,31 +145,72 @@ def PlotGraphs(graphs={}, pdfname='ROCs', x_title='Signal efficiency', y_title='
     canv.SaveAs(pdfname+'.pdf')
     canv.Close()
 
-def GetROC(fname='mlp_predict.root', treename='Events', y_true = 'is_signal', y_score = 'score_is_signal', swap=False, drop_intermediate=True):
-    from root_numpy import root2array, rec2array
-    mymatrix = rec2array(root2array(filenames=fname, treename=treename, branches=[y_true,y_score]))
-    import pandas as pd
-    from array import array
-    df = pd.DataFrame(mymatrix,columns=['y_true','y_score'])
-    from sklearn.metrics import roc_curve, auc, accuracy_score
-    acc = accuracy_score(df['y_true'].round().astype(int),df['y_score'].round().astype(int)) if len(df['y_score'][df['y_score']>1])==0 else 0
-    fpr, tpr, thr = roc_curve_short(df['y_true'], df['y_score']) if drop_intermediate else roc_curve(df['y_true'], df['y_score'])
+
+def GetDNNOutputInfos(df, y_true = 'y_true', y_score = 'y_score', swap=False, drop_intermediate=True):
+    acc = accuracy_score(df[y_true].round().astype(int),df[y_score].round().astype(int)) if len(df[y_score][df[y_score]>1])==0 else 0
+    fpr, tpr, thr = roc_curve_reduced(df[y_true], df[y_score]) if drop_intermediate else roc_curve(df[y_true], df[y_score])
     if swap: fpr, tpr = (tpr,fpr)
-    auc = auc(fpr, tpr)
-    graph = list_to_tgraph(tpr,fpr)
-    return (graph,auc,acc)
+    auc_ = auc(fpr, tpr)
+    return (tpr,fpr,auc_,acc)
 
 
-def GetScores(fname='mlp_predict.root', treename='Events', y_true = 'is_signal', y_score = 'score_is_signal'):
-    from root_numpy import root2array, rec2array
+def GetROC(fname='mlp_predict.root', treename='Events', y_true = 'is_signal', y_score = 'score_is_signal', swap=False, drop_intermediate=True):
     mymatrix = rec2array(root2array(filenames=fname, treename=treename, branches=[y_true,y_score]))
-    import pandas as pd
-    from array import array
     df = pd.DataFrame(mymatrix,columns=['y_true','y_score'])
-    sig = array('d', df[df['y_true']==1]['y_score'])
-    bkg = array('d', df[df['y_true']==0]['y_score'])
-    h_sig = rt.TH1F('h_sig', 'h_sig', 100, 0,1)
-    h_bkg = rt.TH1F('h_bkg', 'h_bkg', 100, 0,1)
-    for x in sig: h_sig.Fill(x)
-    for x in bkg: h_bkg.Fill(x)
-    return (h_sig,h_bkg)
+    tpr,fpr,auc_,acc = GetDNNOutputInfos(df, y_true = 'y_true', y_score = 'y_score', swap=swap, drop_intermediate=drop_intermediate)
+    graph = list_to_tgraph(tpr,fpr)
+    return (graph,auc_,acc)
+
+
+def GetROCvsCat(fname='mlp_predict.root', treename='Events', y_true = 'is_signal', y_score = 'score_is_signal', catVar='m_eventCategory', categories={}, swap=False, drop_intermediate=True):
+    mymatrix = rec2array(root2array(filenames=fname, treename=treename, branches=[y_true,y_score,catVar,'m_mjj']))
+    df = pd.DataFrame(mymatrix,columns=['y_true','y_score',catVar,'mjj'])
+    graphs = OrderedDict()
+    for cat,color in categories.items():
+        df_ = df[df[catVar]==int(cat)]
+        tpr,fpr,auc_,acc = GetDNNOutputInfos(df_, y_true = 'y_true', y_score = 'y_score', swap=swap, drop_intermediate=drop_intermediate)
+        graph = list_to_tgraph(tpr,fpr)
+        graphs[graph] = {'legendtext': 'PN Cat. '+str(int(cat)), 'auc': auc_, 'acc': acc, 'color':color, 'lstyle':rt.kSolid}
+        tpr,fpr,auc_,acc = GetDNNOutputInfos(df_, y_true = 'y_true', y_score = 'mjj', swap=swap, drop_intermediate=drop_intermediate)
+        graph = list_to_tgraph(tpr,fpr)
+        graphs[graph] = {'legendtext': 'm_{jj}  Cat. '+str(int(cat)), 'auc': auc_, 'color':color, 'lstyle':rt.kDashed}
+    return graphs
+
+
+def GetScores(fname='mlp_predict.root', treename='Events', y_true = 'is_signal', y_score = 'score_is_signal', compareTrain=True):
+    mymatrix = rec2array(root2array(filenames=fname, treename=treename, branches=[y_true,y_score]))
+    mymatrix_train = rec2array(root2array(filenames=fname.replace('test','train'), treename=treename, branches=[y_true,y_score]))
+    dfs = {}
+    dfs['test'] = pd.DataFrame(mymatrix,columns=['y_true','y_score'])
+    dfs['train'] = pd.DataFrame(mymatrix_train,columns=['y_true','y_score'])
+    hists = {}
+    for name in ['sig','bkg']:
+        for mode in ['test','train']:
+            if not compareTrain and mode !='test': continue
+            hname = name+'_'+mode
+            hists[hname] = rt.TH1F('h_'+hname, 'h_'+hname, 50, 0,1)
+            ref = 1 if 'sig' in name else 0
+            df = dfs[mode]
+            var = array('d', df[df['y_true']==ref]['y_score'])
+            for x in var: hists[hname].Fill(x)
+    return hists
+
+
+def GetCorrelation(fname='mlp_predict.root', treename='Events', y_true = 'is_signal', y_score = 'score_is_signal', var=('is_signal','y_true'), ranges=(100,0,1), cuts=['all','0p9','0p8','0p7']):
+    mymatrix = rec2array(root2array(filenames=fname, treename=treename, branches=[y_true,y_score,var[0]]))
+    df = pd.DataFrame(mymatrix,columns=['y_true','y_score',var[1]])
+    hists = {}
+    for hname in ['sig','bkg']:
+        hists[hname] = rt.TH2F('h_'+hname, 'h_'+hname, 20, 0,1, ranges[0],ranges[1],ranges[2])
+        for cut in cuts:
+            hists[hname+cut] = rt.TH1F('h_'+hname+cut, 'h_'+hname+cut, ranges[0],ranges[1],ranges[2])
+        ref = 1 if 'sig' in hname else 0
+        mask = df['y_true']==ref
+        var_x = array('d', df[mask]['y_score'])
+        var_y = array('d', df[mask][var[1]])
+        for i in range(len(var_x)):
+            hists[hname].Fill(var_x[i],var_y[i])
+            for cut in cuts:
+                if cut!='all' and var_x[i]<float(cut.replace('p','.')): continue
+                hists[hname+cut].Fill(var_y[i])
+    return hists
