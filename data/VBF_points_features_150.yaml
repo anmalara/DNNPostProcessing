@@ -24,12 +24,12 @@ preprocess:
 
 inputs:
     pf_points:
-        length: 120
+        length: 150
         vars:
             - PF_UE_VBF_eta
             - PF_UE_VBF_phi
     pf_features:
-        length: 120
+        length: 150
         vars:
         ### [format 1]: var_name (no transformation)
         ### [format 2]: [var_name,
@@ -49,7 +49,7 @@ inputs:
             - PF_UE_VBF_pt_log
 
     pf_mask:
-        length: 120
+        length: 150
         vars:
             - pf_mask
 

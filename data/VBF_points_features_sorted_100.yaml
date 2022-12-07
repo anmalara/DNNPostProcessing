@@ -69,8 +69,8 @@ observers:
     - m_eventCategory
     - m_n_PF_jet1
     - m_n_PF_jet2
-    - m_n_PF_UE_charged
-    - m_n_PF_UE_neutral
+    - m_PF_UE_charged_size
+    - m_PF_UE_neutral_size
     - m_n_nonVBF_jets
     - m_HT_nonVBF_jets
     - m_mjj
