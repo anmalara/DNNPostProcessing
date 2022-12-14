@@ -13,8 +13,8 @@ new_variables:
     pf_mask: ak.ones_like(PF_UE_VBF_sorted_pt)
     is_signal : m_is_VBF
     is_bkg: np.logical_not(m_is_VBF)
-    PF_UE_VBF_energy_log: np.log(PF_UE_VBF_sorted_energy)
-    PF_UE_VBF_pt_log: np.log(PF_UE_VBF_sorted_pt)
+    PF_UE_VBF_sorted_energy_log: np.log(PF_UE_VBF_sorted_energy)
+    PF_UE_VBF_sorted_pt_log: np.log(PF_UE_VBF_sorted_pt)
 
 preprocess:
   ### method: [manual, auto] - whether to use manually specified parameters for variable standardization
