@@ -33,7 +33,7 @@ pip install uproot3 awkward0 lz4 xxhash
 pip install tables
 pip install onnxruntime-gpu
 pip install tensorboard
-pip install torch
+pip install torch==1.12.1
 pip install pyarrow
 pip install weaver-core
 git clone https://github.com/LEAF-HQ/DNNPostProcessing.git
