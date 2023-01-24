@@ -99,23 +99,27 @@ elif [[ ${mode} == *"pred"* ]]; then
     data_test="${inputdir}/eventCategory_[0-2]/MC*M1[3][0]*UL1[6-7-8]*.root"
     output_name="${mode}_test.root"
     weaver \
+        --export-onnx "${outputdir}/model.onnx"\
+        --data-config ${data_config} --network-config ${model_config} \
+        --model-prefix "${outputdir}/net_best_epoch_state.pt"
+    weaver \
         --predict --data-test "${data_test}" \
         --data-config ${data_config} --network-config ${model_config} \
-        --model-prefix "${outputdir}/net" --log "${outputdir}/log_predict.log" \
+        --model-prefix "${outputdir}/net_best_epoch_state.pt" --log "${outputdir}/log_predict.log" \
         ${batch_opts} --gpus "${n_gpus}" --num-workers 4 --fetch-step 0.0 \
         --predict-output ${output_name}
     output_name="${mode}_train.root"
     weaver \
         --predict --data-test "${data_train}" \
         --data-config ${data_config} --network-config ${model_config} \
-        --model-prefix "${outputdir}/net" --log "${outputdir}/log_predict.log" \
+        --model-prefix "${outputdir}/net_best_epoch_state.pt" --log "${outputdir}/log_predict.log" \
         ${batch_opts} --gpus "${n_gpus}" --num-workers 4 --fetch-step 0.0 \
         --predict-output ${output_name}
     output_name="${mode}_val.root"
     weaver \
         --predict --data-test "${data_val}" \
         --data-config ${data_config} --network-config ${model_config} \
-        --model-prefix "${outputdir}/net" --log "${outputdir}/log_predict.log" \
+        --model-prefix "${outputdir}/net_best_epoch_state.pt" --log "${outputdir}/log_predict.log" \
         ${batch_opts} --gpus "${n_gpus}" --num-workers 4 --fetch-step 0.0 \
         --predict-output ${output_name}
 fi
@@ -124,3 +128,6 @@ fi
 #--tensorboard VBF_${suffix} \
 #--in-memory --train-val-split 0.8889
 # --num-workers 1 --fetch-by-files --fetch-step 10\
+
+#predict with
+#./train_VBF.sh -p pred -m particlenet_pf -d VBF_points_features_100 -o trainings/particlenet_pf/20221216-120722_particlenet_pf_ranger_lr0.001_batch512_VBF_points_features_100_epoch_15_cat012
