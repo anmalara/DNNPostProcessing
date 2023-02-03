@@ -4,6 +4,8 @@ from root_numpy import root2array, rec2array
 from tdrstyle import *
 import tdrstyle as TDR
 
+TDR.extraText = 'Simulation'
+
 def DataFrameTo2DHist(df, hname, label1,label2, nbinsx=25,xmin=0,xmax=1, nbinsy=50,ymin=200,ymax=1200):
     hist = rt.TH2D(hname,hname, nbinsx,xmin,xmax, nbinsy,ymin,ymax)
     for bin in list(df.index):
@@ -32,7 +34,6 @@ def Plot2DHist(hist, hname):
     canv.SaveAs('PDFs/'+hname+'.pdf')
 
 def PlotCorrelation(hist, hname):
-    TDR.extraText='Simulation'
     tdrStyle = SetStyleCorrelation()
     canv = rt.TCanvas(hname,hname)
     SetAlternative2DColor(hist)
@@ -46,21 +47,29 @@ def PlotCorrelation(hist, hname):
     palette.SetY2NDC(1-tdrStyle.GetPadTopMargin())
     canv.SaveAs('PDFs/'+hname+'.pdf')
 
-def correlation(fname, treename='Events', branches=None):
+def getDataFrame(fname, treename='Events', branches=None):
     mymatrix = rec2array(root2array(filenames=fname, treename=treename, branches=branches))
-    df = pd.DataFrame(mymatrix,columns=[x.replace('m_','') for x in branches])
+    df = pd.DataFrame(mymatrix,columns=[x.replace('m_','').replace('_is_signal','') for x in branches])
+    return df
+
+def filterDataFrame(df, label, val):
+    df_ = df[df[label]==val]
+    df_.drop([label], axis=1, inplace=True)
+    return df_
+
+def RunCorrelation(fname, treename='Events', branches=None):
+    df = getDataFrame(fname=fname, treename=treename, branches=branches)
     for cat in list(set(df['eventCategory']))+['all']:
         for sig in [0,1]:
-            df_ = df[(df['is_signal']==sig)]
-            df_.drop(['is_signal'], axis=1, inplace=True)
+            df_ = filterDataFrame(df, 'is_signal', sig)
             if cat!='all':
-                df_ = df_[df_['eventCategory']==cat]
-                df_.drop(['eventCategory'], axis=1, inplace=True)
+                df_ = filterDataFrame(df_, 'eventCategory', cat)
             corr = df_.corr()
-            TDR.extraText=' corr='+str(int(corr['score_is_signal']['mjj']*100)/100.)
+            TDR.cms_lumi= 'corr='+str(int(corr['score']['mjj']*100)/100.)
             hname = '2D_score_mjj_sig'+str(sig)+'_cat'+str(cat)
-            hist = DataFrameTo2DHist(df=df_,hname=hname, label1='score_is_signal',label2='mjj')
+            hist = DataFrameTo2DHist(df=df_,hname=hname, label1='score',label2='mjj')
             Plot2DHist(hist, hname)
+            TDR.cms_lumi=''
             hname = 'correlation_sig'+str(sig)+'_cat'+str(cat)
             hist = DataFrameTo2DCorrelationHist(df=corr,hname=hname)
             PlotCorrelation(hist, hname)
@@ -69,7 +78,7 @@ def correlation(fname, treename='Events', branches=None):
 def main():
     folder = 'trainings/particlenet_pf/20221216-120722_particlenet_pf_ranger_lr0.001_batch512_VBF_points_features_100_epoch_15_cat012/'
     branches = ['is_signal', 'score_is_signal', 'm_eventCategory', 'm_mjj', 'm_n_PF_jet1', 'm_n_PF_jet2', 'm_PF_UE_charged_size', 'm_PF_UE_neutral_size', 'm_n_nonVBF_jets']
-    correlation(fname=folder+'predict_output/pred_val.root', branches=branches)
+    RunCorrelation(fname=folder+'predict_output/pred_val.root', branches=branches)
 
 if __name__ == '__main__':
     main()
